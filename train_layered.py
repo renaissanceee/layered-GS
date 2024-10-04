@@ -28,11 +28,12 @@ try:
 except ImportError:
     TENSORBOARD_FOUND = False
 
-def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
+def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from, load_gaussian):
     first_iter = 0
     tb_writer = prepare_output_and_logger(dataset)
     gaussians = GaussianModel(dataset.sh_degree)
-    scene = Scene(dataset, gaussians, shuffle=False)
+    # scene = Scene(dataset, gaussians, shuffle=False)
+    scene = Scene(dataset, gaussians, load_gaussian=load_gaussian, shuffle=False)
     gaussians.training_setup(opt)
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
@@ -49,7 +50,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
     viewpoint_stack = scene.getTrainCameras().copy()
-    viewpoint_stack = viewpoint_stack[:100] # far
+    viewpoint_stack = viewpoint_stack[100:] # near
+    print(f"iteration 0")
+    print(gaussians.get_xyz)
     for iteration in range(first_iter, opt.iterations + 1):
         iter_start.record()
         gaussians.update_learning_rate(iteration)
@@ -73,10 +76,16 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         # Loss
         gt_image = viewpoint_cam.original_image.cuda()
         Ll1 = l1_loss(image, gt_image)
+        opt.lambda_dssim = 1.0 - opt.lambda_dssim # force SSIM for high-freq
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
-        loss.backward()
 
+        # gaussians._opacity.shape, gaussians._opacity_base.shape
+        # print(iteration) # 501遇到 期待[275736, 1]但实际[137868, 1]
+        loss.backward()
         iter_end.record()
+        if iteration==0 or iteration==10000 or iteration==20000:
+            print(f"iteration {iteration}")
+            print(gaussians.get_xyz)
 
         with torch.no_grad():
             # Progress bar
@@ -96,15 +105,18 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             # Densification
             if iteration < opt.densify_until_iter:
                 # Keep track of max radii in image-space for pruning
-                gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])
+                gaussians.max_radii2D[visibility_filter] = torch.max(gaussians.max_radii2D[visibility_filter], radii[visibility_filter])# 161438,156001
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
                 if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                     gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
+                    print(f"iteration {iteration}")
+                    print(gaussians.get_xyz)
                 
-                if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
-                    gaussians.reset_opacity()
+                # if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
+                # if iteration % opt.opacity_reset_interval == 0:
+                #     gaussians.reset_opacity()
 
             # Optimizer step
             if iteration < opt.iterations:
@@ -189,6 +201,8 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
+    parser.add_argument("--load_gaussian", type=str, default="ckpt/hotdog_far")
+    
     args = parser.parse_args(sys.argv[1:])
     args.save_iterations.append(args.iterations)
     
@@ -199,7 +213,8 @@ if __name__ == "__main__":
 
     # Start GUI server, configure and run training
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
-    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, args.checkpoint_iterations, args.start_checkpoint, args.debug_from)
+    training(lp.extract(args), op.extract(args), pp.extract(args), args.test_iterations, args.save_iterations, 
+             args.checkpoint_iterations, args.start_checkpoint, args.debug_from, args.load_gaussian)
 
     # All done
     print("\nTraining complete.")
