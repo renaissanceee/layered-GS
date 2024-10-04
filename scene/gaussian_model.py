@@ -254,11 +254,11 @@ class GaussianModel:
         print(f"base_gs:{self._xyz_base.shape[0]}, and new_gs:{self._xyz.shape[0]}")
         xyz = torch.cat((self._xyz_base, self._xyz), dim=0).detach().cpu().numpy()
         normals = np.zeros_like(xyz)
-        f_dc = torch.cat((self._features_dc, self._features_dc_base), dim=0).detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        f_rest = torch.cat((self._features_rest, self._features_rest_base), dim=0).detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
-        opacities = torch.cat((self._opacity, self._opacity_base), dim=0).detach().cpu().numpy()
-        scale = torch.cat((self._scaling, self._scaling_base), dim=0).detach().cpu().numpy()
-        rotation = torch.cat((self._rotation, self._rotation_base), dim=0).detach().cpu().numpy()
+        f_dc = torch.cat((self._features_dc_base, self._features_dc), dim=0).detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        f_rest = torch.cat((self._features_rest_base, self._features_rest), dim=0).detach().transpose(1, 2).flatten(start_dim=1).contiguous().cpu().numpy()
+        opacities = torch.cat((self._opacity_base, self._opacity), dim=0).detach().cpu().numpy()
+        scale = torch.cat((self._scaling_base, self._scaling), dim=0).detach().cpu().numpy()
+        rotation = torch.cat((self._rotation_base, self._rotation), dim=0).detach().cpu().numpy()
 
         dtype_full = [(attribute, 'f4') for attribute in self.construct_list_of_attributes()]
 
@@ -269,7 +269,9 @@ class GaussianModel:
         PlyData([el]).write(path)
 
     def reset_opacity(self):
-        opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
+        # opacities_new = inverse_sigmoid(torch.min(self.get_opacity, torch.ones_like(self.get_opacity)*0.01))
+        opacity_enhance = self.opacity_activation(self._opacity)
+        opacities_new = inverse_sigmoid(torch.min(opacity_enhance, torch.ones_like(opacity_enhance) * 0.01))
         optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
         self._opacity = optimizable_tensors["opacity"]
 
@@ -306,13 +308,43 @@ class GaussianModel:
         rots = np.zeros((xyz.shape[0], len(rot_names)))
         for idx, attr_name in enumerate(rot_names):
             rots[:, idx] = np.asarray(plydata.elements[0][attr_name])
+        # --------G0--------
+        xyz_base = xyz[:137868,:]
+        features_dc_base = features_dc[:137868,:,:]
+        features_extra_base = features_extra[:137868,:,:]
+        opacities_base = opacities[:137868,:]
+        scales_base = scales[:137868,:]
+        rots_base = rots[:137868,:]
 
-        self._xyz = nn.Parameter(torch.tensor(xyz, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._features_dc = nn.Parameter(torch.tensor(features_dc, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
-        self._features_rest = nn.Parameter(torch.tensor(features_extra, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
-        self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._scaling = nn.Parameter(torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(True))
-        self._rotation = nn.Parameter(torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True))
+        # --------enhance--------
+        xyz_enhance = xyz[137868:,:]
+        features_dc_enhance = features_dc[137868:,:,:]
+        features_extra_enhance = features_extra[137868:,:,:]
+        opacities_enhance = opacities[137868:,:]
+        scales_enhance = scales[137868:,:]
+        rots_enhance = rots[137868:,:]
+
+        self._xyz = nn.Parameter(torch.tensor(xyz_enhance, dtype=torch.float, device="cuda").requires_grad_(True))
+        self._features_dc = nn.Parameter(torch.tensor(features_dc_enhance, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._features_rest = nn.Parameter(torch.tensor(features_extra_enhance, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._opacity = nn.Parameter(torch.tensor(opacities_enhance, dtype=torch.float, device="cuda").requires_grad_(True))
+        self._scaling = nn.Parameter(torch.tensor(scales_enhance, dtype=torch.float, device="cuda").requires_grad_(True))
+        self._rotation = nn.Parameter(torch.tensor(rots_enhance, dtype=torch.float, device="cuda").requires_grad_(True))
+
+        ## near
+        self._xyz_base = nn.Parameter(torch.tensor(xyz_base, dtype=torch.float, device="cuda").requires_grad_(True))
+        self._features_dc_base = nn.Parameter(torch.tensor(features_dc_base, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._features_rest_base = nn.Parameter(torch.tensor(features_extra_base, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._scaling_base = nn.Parameter(torch.tensor(scales_base, dtype=torch.float, device="cuda").requires_grad_(True))
+        self._rotation_base = nn.Parameter(torch.tensor(rots_base, dtype=torch.float, device="cuda").requires_grad_(True))
+        self._opacity_base = nn.Parameter(torch.tensor(opacities_base, dtype=torch.float, device="cuda").requires_grad_(True))
+        ## far
+        # self._xyz = nn.Parameter(torch.empty(0, dtype=torch.float, device="cuda").requires_grad_(True))
+        # self._features_dc = nn.Parameter(torch.empty(0, dtype=torch.float, device="cuda").requires_grad_(True))
+        # self._features_rest = nn.Parameter(torch.empty(0, dtype=torch.float, device="cuda").requires_grad_(True))
+        # self._scaling = nn.Parameter(torch.empty(0, dtype=torch.float, device="cuda").requires_grad_(True))
+        # self._rotation = nn.Parameter(torch.empty(0, dtype=torch.float, device="cuda").requires_grad_(True))
+        # self._opacity = nn.Parameter(torch.empty(0, dtype=torch.float, device="cuda").requires_grad_(True))
 
         self.active_sh_degree = self.max_sh_degree
         

@@ -51,8 +51,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     first_iter += 1
     viewpoint_stack = scene.getTrainCameras().copy()
     viewpoint_stack = viewpoint_stack[100:] # near
-    print(f"iteration 0")
-    print(gaussians.get_xyz)
+    # print(f"iteration 0")
+    # print(gaussians.get_xyz)
+    # print(gaussians.get_opacity[:100])
     for iteration in range(first_iter, opt.iterations + 1):
         iter_start.record()
         gaussians.update_learning_rate(iteration)
@@ -78,14 +79,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         Ll1 = l1_loss(image, gt_image)
         opt.lambda_dssim = 1.0 - opt.lambda_dssim # force SSIM for high-freq
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
-
-        # gaussians._opacity.shape, gaussians._opacity_base.shape
-        # print(iteration) # 501遇到 期待[275736, 1]但实际[137868, 1]
         loss.backward()
         iter_end.record()
-        if iteration==0 or iteration==10000 or iteration==20000:
-            print(f"iteration {iteration}")
-            print(gaussians.get_xyz)
 
         with torch.no_grad():
             # Progress bar
@@ -111,12 +106,12 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                     gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
-                    print(f"iteration {iteration}")
-                    print(gaussians.get_xyz)
+                    # print(gaussians.get_opacity[:100])
+                    # print(gaussians.get_xyz[:100])
                 
                 # if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
-                # if iteration % opt.opacity_reset_interval == 0:
-                #     gaussians.reset_opacity()
+                if iteration % opt.opacity_reset_interval == 0:
+                    gaussians.reset_opacity()
 
             # Optimizer step
             if iteration < opt.iterations:
