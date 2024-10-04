@@ -50,7 +50,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
     viewpoint_stack = scene.getTrainCameras().copy()
-    viewpoint_stack = viewpoint_stack[100:] # near
+    viewpoint_stack = viewpoint_stack[:100]
+    # viewpoint_stack = viewpoint_stack[100:] # near
     # print(f"iteration 0")
     # print(gaussians.get_xyz)
     # print(gaussians.get_opacity[:100])
@@ -108,6 +109,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                     gaussians.densify_and_prune(opt.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
                     # print(gaussians.get_opacity[:100])
                     # print(gaussians.get_xyz[:100])
+                    print(gaussians.get_xyz.shape[0])
+
                 
                 # if iteration % opt.opacity_reset_interval == 0 or (dataset.white_background and iteration == opt.densify_from_iter):
                 if iteration % opt.opacity_reset_interval == 0:
@@ -191,8 +194,8 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=6009)
     parser.add_argument('--debug_from', type=int, default=-1)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
-    parser.add_argument("--test_iterations", nargs="+", type=int, default=[10_000, 30_000])
-    parser.add_argument("--save_iterations", nargs="+", type=int, default=[10_000, 30_000])
+    parser.add_argument("--test_iterations", nargs="+", type=int, default=[3000, 10_000, 30_000])
+    parser.add_argument("--save_iterations", nargs="+", type=int, default=[3000, 10_000, 30_000])
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)

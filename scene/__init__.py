@@ -82,7 +82,7 @@ class Scene:
         elif load_gaussian:
             self.gaussians.load_frozen_ply(os.path.join(load_gaussian,
                                                            "point_cloud",
-                                                           "iteration_10000",
+                                                           "iteration_30000",
                                                            "point_cloud.ply"))
         else:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
