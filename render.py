@@ -46,7 +46,9 @@ def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParam
              render_set(dataset.model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background)
 
         if not skip_test:
-             render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background)
+             view_stack = scene.getTestCameras()
+             render_set(dataset.model_path, "test", str(scene.loaded_iter)+"_far", view_stack[:200], gaussians, pipeline, background)
+             # render_set(dataset.model_path, "test", str(scene.loaded_iter) + "_near", view_stack[200:], gaussians, pipeline,background)
 
 if __name__ == "__main__":
     # Set up command line argument parser
