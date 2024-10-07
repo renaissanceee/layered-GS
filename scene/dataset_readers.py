@@ -236,7 +236,8 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
     train_cam_infos = train_cam_infos+train_near_cam_infos
     # -----------------------------------------------
     print("Reading Test Transforms")
-    test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension)
+    test_cam_infos = []
+    # test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension)
     test_near_cam_infos = readCamerasFromTransforms(os.path.join(path,"near_z_2"), "updated_transforms_test.json", white_background, extension)
     test_cam_infos = test_cam_infos+test_near_cam_infos
     

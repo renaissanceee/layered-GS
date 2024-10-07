@@ -49,7 +49,8 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
     viewpoint_stack = scene.getTrainCameras().copy()
-    viewpoint_stack = viewpoint_stack[:100] # far
+    # viewpoint_stack = viewpoint_stack[:100] # far
+    viewpoint_stack = viewpoint_stack[100:]  
     for iteration in range(first_iter, opt.iterations + 1):
         iter_start.record()
         gaussians.update_learning_rate(iteration)
