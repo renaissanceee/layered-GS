@@ -225,21 +225,69 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
 
             cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                             image_path=image_path, image_name=image_name, width=image.size[0], height=image.size[1]))
+            break
             
+    return cam_infos
+
+
+def readCamerasFromTransforms_reference(path, transformsfile, white_background, extension=".png", llffhold=10):
+    cam_infos = []
+
+    with open(os.path.join(path, transformsfile)) as json_file:
+        contents = json.load(json_file)
+        fovx = contents["camera_angle_x"]
+
+        frames = contents["frames"]
+        for idx, frame in enumerate(frames):
+            if idx % llffhold != 0: # sample 10 refs for training
+                continue
+            cam_name = os.path.join(path, frame["file_path"] + extension)
+            c2w = np.array(frame["transform_matrix"])
+            c2w[:3, 1:3] *= -1
+            w2c = np.linalg.inv(c2w)
+            R = np.transpose(w2c[:3, :3])
+            T = w2c[:3, 3]
+
+            image_path = os.path.join(path, cam_name)
+            image_name = Path(cam_name).stem
+            image = Image.open(image_path)
+
+            im_data = np.array(image.convert("RGBA"))
+
+            bg = np.array([1, 1, 1]) if white_background else np.array([0, 0, 0])
+
+            norm_data = im_data / 255.0
+            arr = norm_data[:, :, :3] * norm_data[:, :, 3:4] + bg * (1 - norm_data[:, :, 3:4])
+            image = Image.fromarray(np.array(arr * 255.0, dtype=np.byte), "RGB")
+
+            fovy = focal2fov(fov2focal(fovx, image.size[0]), image.size[1])
+            FovY = fovy
+            FovX = fovx
+
+            cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
+                                        image_path=image_path, image_name=image_name, width=image.size[0],
+                                        height=image.size[1]))
+
     return cam_infos
 
 def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
     print("Reading Training Transforms")
     train_cam_infos = readCamerasFromTransforms(path, "transforms_train.json", white_background, extension)
-    print("Reading Near-Train Transforms")
-    train_near_cam_infos = readCamerasFromTransforms(os.path.join(path,"near_z_2"), "updated_transforms_train.json", white_background, extension)
-    train_cam_infos = train_cam_infos+train_near_cam_infos
+    # print("Reading Near-Train Transforms")
+    # train_near_cam_infos = readCamerasFromTransforms_reference(os.path.join(path,"near_z_2"), "updated_transforms_train.json", white_background, extension)
+    # train_near_cam_infos = readCamerasFromTransforms(os.path.join(path, "near_z_2"),"updated_transforms_train.json", white_background,extension)
+    # train_cam_infos = train_cam_infos+train_near_cam_infos
+    print(f"train_set: {len(train_cam_infos)}")
     # -----------------------------------------------
     print("Reading Test Transforms")
     test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension)
-    print("Reading Near-Test Transforms")
-    test_near_cam_infos = readCamerasFromTransforms(os.path.join(path,"near_z_2"), "updated_transforms_test.json", white_background, extension)
-    test_cam_infos = test_cam_infos+test_near_cam_infos
+    # print("Reading Near-Test Transforms")
+    # test_near_cam_infos = readCamerasFromTransforms(os.path.join(path,"near_z_2"), "updated_transforms_test.json", white_background, extension)
+    # print("Reading Mid-Test Transforms")
+    # test_mid_cam_infos = readCamerasFromTransforms(os.path.join(path,"near_z_1"), "updated_transforms_test.json", white_background, extension)
+    # test_cam_infos = test_cam_infos+test_near_cam_infos+test_mid_cam_infos
+    # test_cam_infos = test_cam_infos + test_near_cam_infos
+    print(f"test_set: {len(test_cam_infos)}")
     
     if not eval:
         train_cam_infos.extend(test_cam_infos)
